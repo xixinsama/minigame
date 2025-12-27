@@ -1,58 +1,30 @@
 {
-  "description": "项目配置文件",
+  "miniprogramRoot": "./",
+  "projectname": "mine-sweeper",
+  "description": "像素风格解密雷游戏",
+  "appid": "test",
   "setting": {
     "urlCheck": false,
     "es6": true,
     "postcss": true,
-    "minified": true,
+    "minify": true,
     "newFeature": true,
-    "compileWorklet": false,
-    "uglifyFileName": false,
+    "nodeModules": true,
+    "autoAudits": false,
+    "uglifyFileName": true,
+    "checkInvalidKey": true,
+    "checkSiteMap": true,
     "uploadWithSourceMap": true,
-    "enhance": false,
-    "packNpmManually": false,
-    "packNpmRelationList": [],
-    "minifyWXSS": true,
-    "minifyWXML": true,
-    "localPlugins": false,
-    "condition": false,
-    "swc": false,
-    "disableSWC": true,
     "babelSetting": {
       "ignore": [],
       "disablePlugins": [],
-      "outputPath": ""
+      "outputPath": "miniprogram_dist"
     },
-    "disableUseStrict": false,
-    "useCompilerPlugins": false
+    "enableEngineNative": false
   },
-  "compileType": "game",
-  "libVersion": "latest",
-  "appid": "wxea86199c27f9312f",
-  "projectname": "quickstart",
-  "condition": {
-    "search": {
-      "current": -1,
-      "list": []
-    },
-    "conversation": {
-      "current": -1,
-      "list": []
-    },
-    "game": {
-      "currentL": -1,
-      "list": []
-    },
-    "miniprogram": {
-      "current": -1,
-      "list": []
-    }
-  },
+  "libVersion": "2.19.4",
+  "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},
-  "packOptions": {
-    "ignore": [],
-    "include": []
-  },
-  "isGameTourist": false,
-  "editorSetting": {}
+  "cloudfunctionRoot": "",
+  "compileType": "game"
 }

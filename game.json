@@ -1,3 +1,11 @@
 {
-  "deviceOrientation": "portrait"
+  "deviceOrientation": "landscape",
+  "showStatusBar": false,
+  "networkTimeout": {
+    "request": 10000
+  },
+  "subpackages": [],
+  "workers": "",
+  "requiredBackgroundModes": [],
+  "resizable": true
 }
