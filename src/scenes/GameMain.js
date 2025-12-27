@@ -1,4 +1,4 @@
-// src/scenes/TutorialLevel.js
+// src/scenes/GameMain.js
 import Constants from '../utils/Constants.js';
 import GameState from '../core/GameState.js';
 import Button from '../ui/Button.js';
@@ -7,18 +7,13 @@ import Text from '../ui/Text.js';
 import { MonsterFactory } from '../core/Monster.js';
 
 /**
- * 新手教程场景
- * 包含完整的游戏UI和交互逻辑，适配主场景功能
+ * 游戏主场景
+ * 包含完整的游戏UI和交互逻辑
  */
-export default class TutorialLevel {
+export default class GameMain {
   constructor() {
     this.gameState = new GameState();
-    this.config = {
-      mapSize: Constants.MAP_SIZES.small, // 小地图
-      lifeCount: 3,                       // 3条生命
-      monsterMode: 1,                     // 怪物模式1（前3种怪）
-      difficulty: 'easy'                  // 简单难度
-    };
+    this.config = null;
     
     // UI元素
     this.buttons = [];
@@ -49,19 +44,17 @@ export default class TutorialLevel {
     
     // 高亮的格子
     this.highlightedCell = null;
-    
-    // 教程相关
-    this.tutorialStep = 0;
-    this.tutorialMessages = [
-      "欢迎来到新手教程！点击格子探明区域",
-      "数字表示周围怪物的数值总和",
-      "将右侧的怪物标签拖到对应位置进行标注",
-      "标注正确可避免损失生命值，现在试试完成游戏！"
-    ];
-    this.tutorialCompleted = false;
   }
 
-  init() {
+  init(config) {
+    // 如果通过changeScene调用，使用预设的config
+    this.config = config || this.config || {
+      mapSize: Constants.MAP_SIZES.small,
+      lifeCount: 3,
+      monsterMode: 1,
+      difficulty: 'normal'
+    };
+    
     // 初始化游戏状态
     this.gameState.init(this.config);
     
@@ -111,49 +104,61 @@ export default class TutorialLevel {
       this.infoBarHeight,
       {
         backgroundColor: 'rgba(20, 20, 20, 0.9)',
-        borderColor: Constants.COLORS.HIGHLIGHT,
+        borderColor: Constants.COLORS.PRIMARY,
         borderWidth: 2,
         cornerRadius: 0,
         opacity: 1
       }
     );
     
-    // 教程步骤文本
-    this.tutorialText = new Text(
-      Constants.SCREEN_WIDTH / 2,
-      this.infoBarHeight / 2 - 15,
-      this.tutorialMessages[this.tutorialStep],
+    // 计时器文本
+    this.timerText = new Text(
+      20,
+      this.infoBarHeight / 2,
+      '时间: 00:00',
       {
         fontSize: Constants.FONT_SIZES.NORMAL,
-        align: 'center',
+        align: 'left',
         baseline: 'middle',
-        color: Constants.COLORS.HIGHLIGHT
+        color: Constants.COLORS.TEXT_PRIMARY
       }
     );
     
-    // 返回按钮
-    this.backButton = new Button(
-      20,
-      this.infoBarHeight / 2 - 25,
-      120,
-      50,
-      '返回',
-      () => {
-        if (this.sceneManager) {
-          this.sceneManager.changeScene(Constants.SCENE_GAME_INSTRUCTIONS);
-        }
+    // 生命值文本
+    this.livesText = new Text(
+      200,
+      this.infoBarHeight / 2,
+      `生命: ${this.gameState.lifeCount}`,
+      {
+        fontSize: Constants.FONT_SIZES.NORMAL,
+        align: 'left',
+        baseline: 'middle',
+        color: Constants.COLORS.DANGER
       }
     );
     
-    // 下一步按钮（仅在特定步骤显示）
-    this.nextButton = new Button(
-      Constants.SCREEN_WIDTH - 140,
+    // 重新开始按钮
+    this.restartButton = new Button(
+      this.gameAreaWidth - 170,
       this.infoBarHeight / 2 - 25,
-      120,
+      150,
       50,
-      '下一步',
+      '重新开始',
       () => {
-        this.advanceTutorial();
+        this.restart();
+        wx.vibrateShort({ type: 'light' });
+      }
+    );
+    
+    // 怪物图鉴按钮
+    this.encyclopediaButton = new Button(
+      this.gameAreaWidth - 350,
+      this.infoBarHeight / 2 - 25,
+      160,
+      50,
+      '怪物图鉴',
+      () => {
+        this.showEncyclopedia();
         wx.vibrateShort({ type: 'light' });
       }
     );
@@ -174,35 +179,8 @@ export default class TutorialLevel {
       }
     );
     
-    // 生命值文本
-    this.livesText = new Text(
-      20,
-      bottomY + this.monsterInfoHeight / 2,
-      `生命: ${this.gameState.lifeCount}`,
-      {
-        fontSize: Constants.FONT_SIZES.NORMAL,
-        align: 'left',
-        baseline: 'middle',
-        color: Constants.COLORS.DANGER
-      }
-    );
-    
-    // 计时器文本
-    this.timerText = new Text(
-      200,
-      bottomY + this.monsterInfoHeight / 2,
-      '时间: 00:00',
-      {
-        fontSize: Constants.FONT_SIZES.NORMAL,
-        align: 'left',
-        baseline: 'middle',
-        color: Constants.COLORS.TEXT_PRIMARY
-      }
-    );
-    
-    // 剩余怪物文本
     this.monsterCountText = new Text(
-      400,
+      20,
       bottomY + this.monsterInfoHeight / 2,
       `剩余怪物: ${this.gameState.remainingMonsters}`,
       {
@@ -230,7 +208,7 @@ export default class TutorialLevel {
     );
     
     // 添加到按钮数组
-    this.buttons = [this.backButton, this.nextButton];
+    this.buttons = [this.restartButton, this.encyclopediaButton];
   }
 
   /**
@@ -259,40 +237,6 @@ export default class TutorialLevel {
   }
 
   /**
-   * 推进教程步骤
-   */
-  advanceTutorial() {
-    this.tutorialStep++;
-    if (this.tutorialStep >= this.tutorialMessages.length) {
-      this.tutorialStep = this.tutorialMessages.length - 1;
-    }
-    this.tutorialText.setText(this.tutorialMessages[this.tutorialStep]);
-  }
-
-  /**
-   * 完成教程
-   */
-  completeTutorial() {
-    if (!this.tutorialCompleted) {
-      this.tutorialCompleted = true;
-      // 标记教程完成（保存到本地存储）
-      wx.setStorageSync('tutorialCompleted', true);
-      
-      // 播放胜利音效
-      if (window.resources && window.resources.audio && window.resources.audio.victory) {
-        window.resources.audio.victory.play();
-      }
-      
-      // 跳转到模式选择界面
-      setTimeout(() => {
-        if (this.sceneManager) {
-          this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
-        }
-      }, 2000);
-    }
-  }
-
-  /**
    * 更新游戏状态
    */
   update(deltaTime) {
@@ -310,12 +254,9 @@ export default class TutorialLevel {
     
     // 检查游戏状态
     if (this.gameState.gameState === 'won') {
-      this.completeTutorial();
+      this.showVictoryScreen();
     } else if (this.gameState.gameState === 'lost') {
-      // 失败时自动重来
-      setTimeout(() => {
-        this.gameState.restart();
-      }, 1500);
+      this.showDefeatScreen();
     }
   }
 
@@ -329,19 +270,14 @@ export default class TutorialLevel {
     
     // 绘制信息栏
     this.infoPanel.draw(ctx, this.screenAdapter);
-    this.tutorialText.draw(ctx);
+    this.timerText.draw(ctx);
+    this.livesText.draw(ctx);
     
     // 绘制按钮
-    this.backButton.draw(ctx);
-    // 只在前3步显示下一步按钮
-    if (this.tutorialStep < 3) {
-      this.nextButton.draw(ctx);
-    }
+    this.buttons.forEach(button => button.draw(ctx));
     
     // 绘制底部怪物信息栏
     this.monsterInfoPanel.draw(ctx, this.screenAdapter);
-    this.livesText.draw(ctx);
-    this.timerText.draw(ctx);
     this.monsterCountText.draw(ctx);
     
     // 绘制游戏网格
@@ -522,20 +458,18 @@ export default class TutorialLevel {
       }
     });
     
-    // 检查标签拖拽（只在教程步骤2及以后）
-    if (this.tutorialStep >= 2) {
-      for (let i = this.monsterLabels.length - 1; i >= 0; i--) {
-        const label = this.monsterLabels[i];
-        if (this.isPointInRect(x, y, label.x, label.y, label.width, label.height)) {
-          this.draggedLabel = label;
-          this.isDragging = true;
-          this.dragOffset = {
-            x: x - label.x,
-            y: y - label.y
-          };
-          wx.vibrateShort({ type: 'light' });
-          return;
-        }
+    // 检查标签拖拽
+    for (let i = this.monsterLabels.length - 1; i >= 0; i--) {
+      const label = this.monsterLabels[i];
+      if (this.isPointInRect(x, y, label.x, label.y, label.width, label.height)) {
+        this.draggedLabel = label;
+        this.isDragging = true;
+        this.dragOffset = {
+          x: x - label.x,
+          y: y - label.y
+        };
+        wx.vibrateShort({ type: 'light' });
+        return;
       }
     }
     
@@ -622,6 +556,60 @@ export default class TutorialLevel {
    */
   isPointInRect(px, py, rx, ry, rw, rh) {
     return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  }
+
+  /**
+   * 重新开始游戏
+   */
+  restart() {
+    this.gameState.restart();
+    this.highlightedCell = null;
+    this.draggedLabel = null;
+    this.isDragging = false;
+  }
+
+  /**
+   * 显示怪物图鉴
+   */
+  showEncyclopedia() {
+    // TODO: 实现怪物图鉴弹窗
+    console.log('显示怪物图鉴');
+  }
+
+  /**
+   * 显示胜利画面
+   */
+  showVictoryScreen() {
+    // 播放胜利音效
+    if (window.resources && window.resources.audio && window.resources.audio.victory) {
+      window.resources.audio.victory.play();
+    }
+    
+    // TODO: 可以添加胜利画面弹窗
+    // 暂时使用setTimeout后跳转回模式选择
+    setTimeout(() => {
+      if (this.sceneManager) {
+        this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
+      }
+    }, 2000);
+  }
+
+  /**
+   * 显示失败画面
+   */
+  showDefeatScreen() {
+    // 播放失败音效
+    if (window.resources && window.resources.audio && window.resources.audio.defeat) {
+      window.resources.audio.defeat.play();
+    }
+    
+    // TODO: 可以添加失败画面弹窗
+    // 暂时使用setTimeout后跳转回模式选择
+    setTimeout(() => {
+      if (this.sceneManager) {
+        this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
+      }
+    }, 2000);
   }
 
   /**

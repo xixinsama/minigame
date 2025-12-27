@@ -3,6 +3,7 @@ import Constants from '../utils/Constants.js';
 import Button from '../ui/Button.js';
 import Panel from '../ui/Panel.js';
 import Text from '../ui/Text.js';
+import GameMain from './GameMain.js';
 
 export default class ModeSelection {
   constructor() {
@@ -309,10 +310,10 @@ export default class ModeSelection {
     
     // 跳转到游戏主界面
     if (this.sceneManager) {
-      const GameMain = require('./GameMain.js').default;
       const gameMain = new GameMain();
-      gameMain.init(gameConfig);
       this.sceneManager.registerScene(Constants.SCENE_GAME_MAIN, gameMain);
+      // 传递配置，场景会在changeScene时调用init
+      gameMain.config = gameConfig;
       this.sceneManager.changeScene(Constants.SCENE_GAME_MAIN);
     }
   }
