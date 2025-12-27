@@ -1,5 +1,5 @@
 // src/ui/Text.js
-import Constants from '../utils/Costants.js';
+import Constants from '../utils/Constants.js';
 
 export default class Text {
   constructor(x, y, text, config = {}) {

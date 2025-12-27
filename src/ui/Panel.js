@@ -1,5 +1,5 @@
 // src/ui/Panel.js
-import Constants from '../utils/Costants.js';
+import Constants from '../utils/Constants.js';
 
 export default class Panel {
   constructor(x, y, width, height, config = {}) {

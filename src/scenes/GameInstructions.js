@@ -20,19 +20,29 @@ export default class GameInstructions {
   }
 
   init() {
+    // 创建按钮
     const buttonWidth = 300;
     const buttonHeight = 60;
     const centerX = Constants.SCREEN_WIDTH / 2;
     
     this.startButton = new Button(
       centerX - buttonWidth / 2,
-      Constants.SCREEN_HEIGHT - 120,
+      Constants.SCREEN_HEIGHT - 150,
       buttonWidth,
       buttonHeight,
       "开始游戏",
       () => {
         if (this.sceneManager) {
-          this.sceneManager.changeScene(Constants.SCENE_TUTORIAL);
+          // 检查是否已完成教程
+          const tutorialCompleted = wx.getStorageSync('tutorialCompleted') || false;
+          
+          if (tutorialCompleted) {
+            this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
+          } else {
+            this.sceneManager.changeScene(Constants.SCENE_TUTORIAL);
+          }
+          
+          wx.vibrateShort({ type: 'light' });
         }
       }
     );

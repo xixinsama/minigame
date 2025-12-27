@@ -11,6 +11,7 @@ export default class Constants {
 
   // 像素分缩放比例
   static PIXEL_SCALE = 1;
+  
   // 场景名称
   static SCENE_GAME_INSTRUCTIONS = 'game_instructions';
   static SCENE_TUTORIAL = 'tutorial';

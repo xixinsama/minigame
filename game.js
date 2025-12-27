@@ -4,7 +4,8 @@ import InputManager from './src/core/InputManager.js';
 import Constants from './src/utils/Constants.js';
 import GameInstructions from './src/scenes/GameInstructions.js';
 import ScreenAdapter from './src/utils/ScreenAdapter.js';
-
+import TutorialLevel from './src/scenes/TutorialLevel.js';
+import ModeSelection from './src/scenes/ModeSelection.js';
 // 全局游戏对象
 window.Game = {
   sceneManager: null,
@@ -20,7 +21,7 @@ window.Game = {
     this.ctx = this.canvas.getContext('2d');
     
     // 设置画布物理尺寸
-    this.canvas.width = this.canvas.clientWidth; // 乘以2提高画质
+    this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
     
     // 初始化屏幕适配
@@ -32,11 +33,20 @@ window.Game = {
     // 初始化输入管理器
     this.inputManager = new InputManager(this.canvas, this.sceneManager, this.screenAdapter);
     
-    // 注册场景
+    // 注册所有场景
     this.sceneManager.registerScene(Constants.SCENE_GAME_INSTRUCTIONS, new GameInstructions());
+    this.sceneManager.registerScene(Constants.SCENE_TUTORIAL, new TutorialLevel());
+    this.sceneManager.registerScene(Constants.SCENE_MODE_SELECTION, new ModeSelection());
+    
+    // 检查是否已完成教程
+    const tutorialCompleted = wx.getStorageSync('tutorialCompleted') || false;
     
     // 切换到初始场景
-    this.sceneManager.changeScene(Constants.SCENE_GAME_INSTRUCTIONS);
+    if (tutorialCompleted) {
+      this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
+    } else {
+      this.sceneManager.changeScene(Constants.SCENE_GAME_INSTRUCTIONS);
+    }
     
     // 开始游戏主循环
     this.gameLoop();
@@ -53,15 +63,9 @@ window.Game = {
     // 应用适配变换
     const restore = this.screenAdapter.applyTransform(this.ctx);
     
-    // 更新游戏状态
-    if (this.sceneManager.currentScene) {
-      this.sceneManager.currentScene.update(deltaTime);
-    }
-    
-    // 绘制游戏
-    if (this.sceneManager.currentScene) {
-      this.sceneManager.currentScene.draw(this.ctx);
-    }
+    // 更新和绘制
+    this.sceneManager.update(deltaTime);
+    this.sceneManager.draw(this.ctx);
     
     // 恢复上下文状态
     restore();
