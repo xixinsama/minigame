@@ -77,35 +77,35 @@ export class MonsterFactory {
     ];
     monsters.push(new Monster('monster3', '恶魔C', 3, monster3Range, {row: 0, col: 2}));
     
-    // 怪物4
+    // 怪物4 - 幽浮A
     const monster4Range = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1, 0],           [1, 0],
-    [-1, 1],  [0, 1],  [1, 1]
-  ];
-    monsters.push(new Monster('monster3', '幽浮A', 1, monster4Range, {row: 0, col: 3}));
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],           [1, 0],
+      [-1, 1],  [0, 1],  [1, 1]
+    ];
+    monsters.push(new Monster('monster4', '幽浮A', 1, monster4Range, {row: 0, col: 3}));
     
-    // 怪物5
+    // 怪物5 - 幽浮B
     const monster5Range = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1, 0],           [1, 0],
-    [-1, 1],  [0, 1],  [1, 1]
-  ];
-    monsters.push(new Monster('monster3', '幽浮B', 2, monster5Range, {row: 2, col: 0}));
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],           [1, 0],
+      [-1, 1],  [0, 1],  [1, 1]
+    ];
+    monsters.push(new Monster('monster5', '幽浮B', 2, monster5Range, {row: 2, col: 0}));
     
-    // 怪物6
-   const monster6Range = [
-    [-1, 0], [0, 1], [1, 0], [0, -1],
-    [-2, 0], [0, 2], [2, 0], [0, -2]
-  ];
-    monsters.push(new Monster('monster3', '淤泥怪A', 2, monster6Range, {row: 2, col: 1}));
+    // 怪物6 - 淤泥怪A
+    const monster6Range = [
+      [-1, 0], [0, 1], [1, 0], [0, -1],
+      [-2, 0], [0, 2], [2, 0], [0, -2]
+    ];
+    monsters.push(new Monster('monster6', '淤泥怪A', 2, monster6Range, {row: 2, col: 1}));
   
-    // 怪物7
-   const monster7Range = [
-    [-1, -1], [1, 1], [1, -1], [-1, 1],
-    [-2, -2], [2, 2], [2, -2], [-2, 2]
-  ];
-    monsters.push(new Monster('monster3', '淤泥怪B', 2, monster7Range, {row: 2, col: 2}));
+    // 怪物7 - 淤泥怪B
+    const monster7Range = [
+      [-1, -1], [1, 1], [1, -1], [-1, 1],
+      [-2, -2], [2, 2], [2, -2], [-2, 2]
+    ];
+    monsters.push(new Monster('monster7', '淤泥怪B', 2, monster7Range, {row: 2, col: 2}));
     
     return monsters;
   }
