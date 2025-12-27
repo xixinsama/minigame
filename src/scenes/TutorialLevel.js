@@ -4,50 +4,140 @@ import GameState from '../core/GameState.js';
 import Button from '../ui/Button.js';
 import Panel from '../ui/Panel.js';
 import Text from '../ui/Text.js';
+import { MonsterFactory } from '../core/Monster.js';
 
+/**
+ * 新手教程场景
+ * 包含完整的游戏UI和交互逻辑，适配主场景功能
+ */
 export default class TutorialLevel {
   constructor() {
-    this.gameState = null;
-    this.buttons = [];
-    this.tutorialStep = 0; // 教程步骤
-    this.tutorialMessages = [
-      "新手教程：点击格子探明区域",
-      "数字表示周围怪物的数值总和",
-      "将右侧的怪物标签拖到对应位置进行标注",
-      "标注正确可避免损失生命值"
-    ];
-    this.isDragging = false;
-    this.draggedMonster = null;
-    this.dragStartPos = null;
-  }
-
-  init() {
-    // 初始化游戏状态 - 新手教程关配置
     this.gameState = new GameState();
-    this.gameState.init({
+    this.config = {
       mapSize: Constants.MAP_SIZES.small, // 小地图
       lifeCount: 3,                       // 3条生命
       monsterMode: 1,                     // 怪物模式1（前3种怪）
       difficulty: 'easy'                  // 简单难度
-    });
+    };
     
-    this.gameState.startGame();
+    // UI元素
+    this.buttons = [];
+    this.panels = [];
+    this.texts = [];
     
-    // 创建UI元素
-    this.createUI();
+    // 拖拽系统
+    this.draggedLabel = null;
+    this.dragOffset = { x: 0, y: 0 };
+    this.isDragging = false;
+    this.touchStartPos = null;
+    
+    // 布局尺寸
+    this.gameAreaWidth = 0;
+    this.labelAreaWidth = 0;
+    this.infoBarHeight = Constants.UI_LAYOUT.INFO_BAR_HEIGHT;
+    this.monsterInfoHeight = Constants.UI_LAYOUT.MONSTER_INFO_HEIGHT;
+    
+    // 格子渲染相关
+    this.cellSize = 0;
+    this.gridOffsetX = 0;
+    this.gridOffsetY = 0;
+    
+    // 标签相关
+    this.monsterLabels = [];
+    this.labelAreaX = 0;
+    this.labelSize = 60;
+    
+    // 高亮的格子
+    this.highlightedCell = null;
+    
+    // 教程相关
+    this.tutorialStep = 0;
+    this.tutorialMessages = [
+      "欢迎来到新手教程！点击格子探明区域",
+      "数字表示周围怪物的数值总和",
+      "将右侧的怪物标签拖到对应位置进行标注",
+      "标注正确可避免损失生命值，现在试试完成游戏！"
+    ];
+    this.tutorialCompleted = false;
   }
 
+  init() {
+    // 初始化游戏状态
+    this.gameState.init(this.config);
+    
+    // 计算布局
+    this.calculateLayout();
+    
+    // 创建UI
+    this.createUI();
+    
+    // 创建怪物标签
+    this.createMonsterLabels();
+  }
+
+  /**
+   * 计算布局尺寸
+   */
+  calculateLayout() {
+    // 游戏区域占80%宽度
+    this.gameAreaWidth = Constants.SCREEN_WIDTH * Constants.UI_LAYOUT.GAME_AREA_RATIO;
+    this.labelAreaWidth = Constants.SCREEN_WIDTH * (1 - Constants.UI_LAYOUT.GAME_AREA_RATIO);
+    this.labelAreaX = this.gameAreaWidth;
+    
+    // 计算可用的游戏区域高度
+    const availableHeight = Constants.SCREEN_HEIGHT - this.infoBarHeight - this.monsterInfoHeight;
+    
+    // 计算格子大小，确保网格适应屏幕
+    const maxCellWidth = (this.gameAreaWidth - 40) / this.config.mapSize.width;
+    const maxCellHeight = (availableHeight - 40) / this.config.mapSize.height;
+    this.cellSize = Math.min(maxCellWidth, maxCellHeight, this.config.mapSize.cellSize);
+    
+    // 计算网格偏移，使其居中
+    const gridWidth = this.cellSize * this.config.mapSize.width;
+    const gridHeight = this.cellSize * this.config.mapSize.height;
+    this.gridOffsetX = (this.gameAreaWidth - gridWidth) / 2;
+    this.gridOffsetY = this.infoBarHeight + (availableHeight - gridHeight) / 2;
+  }
+
+  /**
+   * 创建UI元素
+   */
   createUI() {
-    const buttonWidth = 200;
-    const buttonHeight = 50;
+    // 信息栏背景
+    this.infoPanel = new Panel(
+      0,
+      0,
+      Constants.SCREEN_WIDTH,
+      this.infoBarHeight,
+      {
+        backgroundColor: 'rgba(20, 20, 20, 0.9)',
+        borderColor: Constants.COLORS.HIGHLIGHT,
+        borderWidth: 2,
+        cornerRadius: 0,
+        opacity: 1
+      }
+    );
+    
+    // 教程步骤文本
+    this.tutorialText = new Text(
+      Constants.SCREEN_WIDTH / 2,
+      this.infoBarHeight / 2 - 15,
+      this.tutorialMessages[this.tutorialStep],
+      {
+        fontSize: Constants.FONT_SIZES.NORMAL,
+        align: 'center',
+        baseline: 'middle',
+        color: Constants.COLORS.HIGHLIGHT
+      }
+    );
     
     // 返回按钮
     this.backButton = new Button(
       20,
-      20,
-      buttonWidth,
-      buttonHeight,
-      "返回",
+      this.infoBarHeight / 2 - 25,
+      120,
+      50,
+      '返回',
       () => {
         if (this.sceneManager) {
           this.sceneManager.changeScene(Constants.SCENE_GAME_INSTRUCTIONS);
@@ -55,334 +145,501 @@ export default class TutorialLevel {
       }
     );
     
-    // 重新开始按钮
-    this.restartButton = new Button(
-      Constants.SCREEN_WIDTH - buttonWidth - 20,
-      20,
-      buttonWidth,
-      buttonHeight,
-      "重来",
-      () => {
-        this.gameState.restart();
-      }
-    );
-    
-    // 下一步按钮
+    // 下一步按钮（仅在特定步骤显示）
     this.nextButton = new Button(
-      Constants.SCREEN_WIDTH / 2 - 100,
-      Constants.SCREEN_HEIGHT - 80,
-      200,
-      60,
-      "下一步",
+      Constants.SCREEN_WIDTH - 140,
+      this.infoBarHeight / 2 - 25,
+      120,
+      50,
+      '下一步',
       () => {
-        this.tutorialStep++;
-        if (this.tutorialStep >= this.tutorialMessages.length) {
-          this.completeTutorial();
-        }
+        this.advanceTutorial();
+        wx.vibrateShort({ type: 'light' });
       }
     );
     
-    // 状态面板
-    this.infoPanel = new Panel(
-      Constants.SCREEN_WIDTH / 2 - 150,
-      20,
-      300,
-      60,
+    // 底部怪物信息栏
+    const bottomY = Constants.SCREEN_HEIGHT - this.monsterInfoHeight;
+    this.monsterInfoPanel = new Panel(
+      0,
+      bottomY,
+      this.gameAreaWidth,
+      this.monsterInfoHeight,
       {
-        title: "新手教程",
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        borderColor: Constants.COLORS.HIGHLIGHT,
-        borderWidth: 2
+        backgroundColor: 'rgba(20, 20, 20, 0.9)',
+        borderColor: Constants.COLORS.SECONDARY,
+        borderWidth: 2,
+        cornerRadius: 0,
+        opacity: 1
       }
     );
     
-    // 怪物标签（教程用）
-    this.monsterLabels = [
-      { id: 'monster1', name: '恶魔A', x: Constants.SCREEN_WIDTH - 120, y: 200 },
-      { id: 'monster2', name: '恶魔B', x: Constants.SCREEN_WIDTH - 120, y: 280 },
-      { id: 'monster3', name: '恶魔C', x: Constants.SCREEN_WIDTH - 120, y: 360 }
-    ];
+    // 生命值文本
+    this.livesText = new Text(
+      20,
+      bottomY + this.monsterInfoHeight / 2,
+      `生命: ${this.gameState.lifeCount}`,
+      {
+        fontSize: Constants.FONT_SIZES.NORMAL,
+        align: 'left',
+        baseline: 'middle',
+        color: Constants.COLORS.DANGER
+      }
+    );
+    
+    // 计时器文本
+    this.timerText = new Text(
+      200,
+      bottomY + this.monsterInfoHeight / 2,
+      '时间: 00:00',
+      {
+        fontSize: Constants.FONT_SIZES.NORMAL,
+        align: 'left',
+        baseline: 'middle',
+        color: Constants.COLORS.TEXT_PRIMARY
+      }
+    );
+    
+    // 剩余怪物文本
+    this.monsterCountText = new Text(
+      400,
+      bottomY + this.monsterInfoHeight / 2,
+      `剩余怪物: ${this.gameState.remainingMonsters}`,
+      {
+        fontSize: Constants.FONT_SIZES.NORMAL,
+        align: 'left',
+        baseline: 'middle',
+        color: Constants.COLORS.HIGHLIGHT
+      }
+    );
+    
+    // 标签区域背景
+    this.labelAreaPanel = new Panel(
+      this.labelAreaX,
+      this.infoBarHeight,
+      this.labelAreaWidth,
+      Constants.SCREEN_HEIGHT - this.infoBarHeight - this.monsterInfoHeight,
+      {
+        backgroundColor: 'rgba(30, 30, 30, 0.95)',
+        borderColor: Constants.COLORS.HIGHLIGHT,
+        borderWidth: 2,
+        cornerRadius: 0,
+        opacity: 1,
+        title: '怪物标签'
+      }
+    );
+    
+    // 添加到按钮数组
+    this.buttons = [this.backButton, this.nextButton];
   }
 
+  /**
+   * 创建怪物标签
+   */
+  createMonsterLabels() {
+    this.monsterLabels = [];
+    const monsters = MonsterFactory.getMonstersByMode(this.config.monsterMode);
+    
+    const startY = this.infoBarHeight + 80;
+    const spacing = 80;
+    const labelX = this.labelAreaX + (this.labelAreaWidth - this.labelSize) / 2;
+    
+    monsters.forEach((monster, index) => {
+      this.monsterLabels.push({
+        monster: monster,
+        x: labelX,
+        y: startY + index * spacing,
+        originalX: labelX,
+        originalY: startY + index * spacing,
+        width: this.labelSize,
+        height: this.labelSize,
+        isDragging: false
+      });
+    });
+  }
+
+  /**
+   * 推进教程步骤
+   */
+  advanceTutorial() {
+    this.tutorialStep++;
+    if (this.tutorialStep >= this.tutorialMessages.length) {
+      this.tutorialStep = this.tutorialMessages.length - 1;
+    }
+    this.tutorialText.setText(this.tutorialMessages[this.tutorialStep]);
+  }
+
+  /**
+   * 完成教程
+   */
+  completeTutorial() {
+    if (!this.tutorialCompleted) {
+      this.tutorialCompleted = true;
+      // 标记教程完成（保存到本地存储）
+      wx.setStorageSync('tutorialCompleted', true);
+      
+      // 播放胜利音效
+      if (window.resources && window.resources.audio && window.resources.audio.victory) {
+        window.resources.audio.victory.play();
+      }
+      
+      // 跳转到模式选择界面
+      setTimeout(() => {
+        if (this.sceneManager) {
+          this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
+        }
+      }, 2000);
+    }
+  }
+
+  /**
+   * 更新游戏状态
+   */
+  update(deltaTime) {
+    this.gameState.update();
+    
+    // 更新UI文本
+    const minutes = Math.floor(this.gameState.elapsedTime / 60);
+    const seconds = Math.floor(this.gameState.elapsedTime % 60);
+    this.timerText.setText(
+      `时间: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    );
+    
+    this.livesText.setText(`生命: ${this.gameState.lifeCount}`);
+    this.monsterCountText.setText(`剩余怪物: ${this.gameState.remainingMonsters}`);
+    
+    // 检查游戏状态
+    if (this.gameState.gameState === 'won') {
+      this.completeTutorial();
+    } else if (this.gameState.gameState === 'lost') {
+      // 失败时自动重来
+      setTimeout(() => {
+        this.gameState.restart();
+      }, 1500);
+    }
+  }
+
+  /**
+   * 绘制场景
+   */
   draw(ctx) {
-    // 绘制背景
+    // 背景
     ctx.fillStyle = Constants.COLORS.BACKGROUND;
     ctx.fillRect(0, 0, Constants.SCREEN_WIDTH, Constants.SCREEN_HEIGHT);
+    
+    // 绘制信息栏
+    this.infoPanel.draw(ctx, this.screenAdapter);
+    this.tutorialText.draw(ctx);
+    
+    // 绘制按钮
+    this.backButton.draw(ctx);
+    // 只在前3步显示下一步按钮
+    if (this.tutorialStep < 3) {
+      this.nextButton.draw(ctx);
+    }
+    
+    // 绘制底部怪物信息栏
+    this.monsterInfoPanel.draw(ctx, this.screenAdapter);
+    this.livesText.draw(ctx);
+    this.timerText.draw(ctx);
+    this.monsterCountText.draw(ctx);
     
     // 绘制游戏网格
     this.drawGrid(ctx);
     
-    // 绘制UI
-    this.infoPanel.draw(ctx, this.screenAdapter);
-    
-    // 绘制教程信息
-    ctx.fillStyle = Constants.COLORS.TEXT_PRIMARY;
-    ctx.font = `${Constants.FONT_SIZES.NORMAL}px ${Constants.FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(
-      this.tutorialMessages[this.tutorialStep] || "教程完成！",
-      Constants.SCREEN_WIDTH / 2,
-      45
-    );
-    
-    // 绘制生命值
-    ctx.fillStyle = Constants.COLORS.DANGER;
-    ctx.font = `${Constants.FONT_SIZES.NORMAL}px ${Constants.FONT_FAMILY}`;
-    ctx.textAlign = 'left';
-    ctx.fillText(`生命: ${this.gameState.lifeCount}`, 20, 100);
-    
-    // 绘制计时
-    const minutes = Math.floor(this.gameState.elapsedTime / 60);
-    const seconds = Math.floor(this.gameState.elapsedTime % 60);
-    ctx.fillText(`时间: ${minutes}:${seconds.toString().padStart(2, '0')}`, 20, 140);
-    
-    // 绘制按钮
-    this.backButton.draw(ctx);
-    this.restartButton.draw(ctx);
-    this.nextButton.draw(ctx);
-    
-    // 绘制怪物标签
+    // 绘制标签区域
+    this.labelAreaPanel.draw(ctx, this.screenAdapter);
     this.drawMonsterLabels(ctx);
-    
-    // 绘制拖拽中的怪物
-    if (this.isDragging && this.draggedMonster) {
-      this.drawDraggingMonster(ctx);
-    }
   }
 
+  /**
+   * 绘制游戏网格
+   */
   drawGrid(ctx) {
-    const cellSize = this.screenAdapter.getAdaptedCellSize();
-    const gridWidth = this.gameState.mapSize.width;
-    const gridHeight = this.gameState.mapSize.height;
-    
-    // 计算网格起始位置（居中）
-    const startX = (Constants.SCREEN_WIDTH - gridWidth * cellSize) / 2;
-    const startY = (Constants.SCREEN_HEIGHT - gridHeight * cellSize) / 2 + 40; // 从信息栏下方开始
-    
-    // 绘制网格
-    ctx.strokeStyle = Constants.COLORS.GRID_LINE;
-    ctx.lineWidth = 2;
-    
-    for (let y = 0; y <= gridHeight; y++) {
-      ctx.beginPath();
-      ctx.moveTo(startX, startY + y * cellSize);
-      ctx.lineTo(startX + gridWidth * cellSize, startY + y * cellSize);
-      ctx.stroke();
-    }
-    
-    for (let x = 0; x <= gridWidth; x++) {
-      ctx.beginPath();
-      ctx.moveTo(startX + x * cellSize, startY);
-      ctx.lineTo(startX + x * cellSize, startY + gridHeight * cellSize);
-      ctx.stroke();
-    }
-    
-    // 绘制格子内容
-    for (let y = 0; y < gridHeight; y++) {
-      for (let x = 0; x < gridWidth; x++) {
+    for (let y = 0; y < this.config.mapSize.height; y++) {
+      for (let x = 0; x < this.config.mapSize.width; x++) {
         const cell = this.gameState.getCell(x, y);
-        const cellX = startX + x * cellSize;
-        const cellY = startY + y * cellSize;
+        if (!cell) continue;
         
-        // 绘制格子背景
-        if (cell.isRevealed) {
-          ctx.fillStyle = Constants.COLORS.CELL_REVEALED;
-          ctx.fillRect(cellX, cellY, cellSize, cellSize);
-        } else if (cell.isMarked) {
-          ctx.fillStyle = Constants.COLORS.CELL_MARKED;
-          ctx.fillRect(cellX, cellY, cellSize, cellSize);
-        } else {
-          ctx.fillStyle = Constants.COLORS.CELL_DEFAULT;
-          ctx.fillRect(cellX, cellY, cellSize, cellSize);
-        }
+        const screenX = this.gridOffsetX + x * this.cellSize;
+        const screenY = this.gridOffsetY + y * this.cellSize;
         
-        // 绘制格子内容
-        if (cell.isRevealed || cell.isMarked) {
-          ctx.fillStyle = cell.getDisplayColor();
-          ctx.font = `${cellSize * 0.5}px ${Constants.FONT_FAMILY}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(cell.getDisplayText(), cellX + cellSize / 2, cellY + cellSize / 2);
-        }
+        // 绘制格子
+        this.drawCell(ctx, cell, screenX, screenY);
       }
     }
   }
 
-  drawMonsterLabels(ctx) {
-    ctx.fillStyle = Constants.COLORS.TEXT_PRIMARY;
-    ctx.font = `${Constants.FONT_SIZES.SMALL}px ${Constants.FONT_FAMILY}`;
+  /**
+   * 绘制单个格子
+   */
+  drawCell(ctx, cell, x, y) {
+    const padding = 2;
+    const innerX = x + padding;
+    const innerY = y + padding;
+    const innerSize = this.cellSize - padding * 2;
+    
+    // 格子背景
+    if (cell.isRevealed) {
+      ctx.fillStyle = Constants.COLORS.CELL_REVEALED;
+    } else if (cell.isMarked) {
+      ctx.fillStyle = Constants.COLORS.CELL_MARKED;
+    } else if (this.highlightedCell && this.highlightedCell.x === cell.x && this.highlightedCell.y === cell.y) {
+      ctx.fillStyle = Constants.COLORS.HIGHLIGHT;
+    } else {
+      ctx.fillStyle = Constants.COLORS.CELL_DEFAULT;
+    }
+    
+    ctx.fillRect(innerX, innerY, innerSize, innerSize);
+    
+    // 格子边框
+    ctx.strokeStyle = Constants.COLORS.GRID_LINE;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(innerX, innerY, innerSize, innerSize);
+    
+    // 绘制内容
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const centerX = x + this.cellSize / 2;
+    const centerY = y + this.cellSize / 2;
     
-    this.monsterLabels.forEach(label => {
-      // 绘制标签背景
-      ctx.fillStyle = Constants.COLORS.CELL_DEFAULT;
-      ctx.fillRect(label.x - 50, label.y - 20, 100, 40);
-      
-      // 绘制边框
-      ctx.strokeStyle = Constants.COLORS.TEXT_SECONDARY;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(label.x - 50, label.y - 20, 100, 40);
-      
-      // 绘制文字
-      ctx.fillStyle = Constants.COLORS.TEXT_PRIMARY;
-      ctx.fillText(label.name, label.x, label.y);
-    });
+    if (cell.isRevealed) {
+      if (cell.isMine) {
+        // 绘制怪物图标
+        this.drawMonsterSprite(ctx, cell.monsterType, centerX, centerY, innerSize * 0.8);
+      } else if (cell.value > 0) {
+        // 绘制数字
+        ctx.fillStyle = this.getNumberColor(cell.value);
+        ctx.font = `bold ${Math.floor(innerSize * 0.5)}px ${Constants.FONT_FAMILY}`;
+        ctx.fillText(cell.value.toString(), centerX, centerY);
+      }
+    } else if (cell.isMarked && cell.markedMonsterType) {
+      // 绘制标记的怪物
+      const monster = MonsterFactory.createMonsters().find(m => m.id === cell.markedMonsterType);
+      if (monster) {
+        this.drawMonsterSprite(ctx, monster, centerX, centerY, innerSize * 0.7);
+      }
+    }
   }
 
-  drawDraggingMonster(ctx) {
-    if (!this.draggedMonster) return;
+  /**
+   * 绘制怪物精灵
+   */
+  drawMonsterSprite(ctx, monster, centerX, centerY, size) {
+    if (!window.resources || !window.resources.sprites || !window.resources.sprites.monsters) {
+      // 如果资源未加载，绘制占位符
+      ctx.fillStyle = '#ff5252';
+      ctx.font = `${Math.floor(size * 0.5)}px ${Constants.FONT_FAMILY}`;
+      ctx.fillText('M', centerX, centerY);
+      return;
+    }
     
-    const pos = this.screenAdapter.screenToGameCoords(this.dragStartPos.x, this.dragStartPos.y);
+    const img = window.resources.sprites.monsters;
+    const halfSize = size / 2;
     
-    ctx.fillStyle = Constants.COLORS.CELL_MARKED;
-    ctx.fillRect(pos.x - 40, pos.y - 20, 80, 40);
+    try {
+      ctx.drawImage(
+        img,
+        monster.spriteX, monster.spriteY, monster.spriteWidth, monster.spriteHeight,
+        centerX - halfSize, centerY - halfSize, size, size
+      );
+    } catch (e) {
+      // 绘制失败，显示占位符
+      ctx.fillStyle = '#ff5252';
+      ctx.fillRect(centerX - halfSize, centerY - halfSize, size, size);
+    }
+  }
+
+  /**
+   * 绘制怪物标签
+   */
+  drawMonsterLabels(ctx) {
+    this.monsterLabels.forEach(label => {
+      // 如果正在被拖拽，跳过（稍后单独绘制）
+      if (label === this.draggedLabel) return;
+      
+      this.drawLabel(ctx, label);
+    });
     
+    // 绘制正在拖拽的标签（最后绘制，确保在最上层）
+    if (this.draggedLabel) {
+      this.drawLabel(ctx, this.draggedLabel);
+    }
+  }
+
+  /**
+   * 绘制单个标签
+   */
+  drawLabel(ctx, label) {
+    // 标签背景
+    ctx.fillStyle = 'rgba(60, 60, 60, 0.9)';
+    ctx.fillRect(label.x, label.y, label.width, label.height);
+    
+    // 标签边框
     ctx.strokeStyle = Constants.COLORS.HIGHLIGHT;
     ctx.lineWidth = 2;
-    ctx.strokeRect(pos.x - 40, pos.y - 20, 80, 40);
+    ctx.strokeRect(label.x, label.y, label.width, label.height);
     
+    // 绘制怪物精灵
+    const centerX = label.x + label.width / 2;
+    const centerY = label.y + label.height / 2;
+    this.drawMonsterSprite(ctx, label.monster, centerX, centerY, label.width * 0.8);
+    
+    // 绘制怪物名称（在标签下方）
     ctx.fillStyle = Constants.COLORS.TEXT_PRIMARY;
     ctx.font = `${Constants.FONT_SIZES.SMALL}px ${Constants.FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(this.draggedMonster.name, pos.x, pos.y);
+    ctx.fillText(label.monster.name, centerX, label.y + label.height + 15);
   }
 
+  /**
+   * 获取数字颜色
+   */
+  getNumberColor(value) {
+    const colors = [
+      '#000', '#0080ff', '#00a000', '#ff0000', 
+      '#000080', '#800000', '#008080', '#808080', '#888800'
+    ];
+    return colors[Math.min(value, colors.length - 1)] || '#000';
+  }
+
+  /**
+   * 处理触摸开始
+   */
   handleTouchStart(x, y) {
-    // 检查按钮
-    this.backButton.update(x, y);
-    this.restartButton.update(x, y);
-    this.nextButton.update(x, y);
+    this.touchStartPos = { x, y };
     
-    // 检查怪物标签（仅在标注教程步骤）
-    if (this.tutorialStep === 2) {
-      for (const label of this.monsterLabels) {
-        if (Math.abs(x - label.x) < 50 && Math.abs(y - label.y) < 20) {
+    // 开始游戏（如果还未开始）
+    if (this.gameState.gameState === 'ready') {
+      this.gameState.startGame();
+    }
+    
+    // 检查按钮点击
+    this.buttons.forEach(button => {
+      button.update(x, y);
+      if (button.isHovered) {
+        button.press();
+      }
+    });
+    
+    // 检查标签拖拽（只在教程步骤2及以后）
+    if (this.tutorialStep >= 2) {
+      for (let i = this.monsterLabels.length - 1; i >= 0; i--) {
+        const label = this.monsterLabels[i];
+        if (this.isPointInRect(x, y, label.x, label.y, label.width, label.height)) {
+          this.draggedLabel = label;
           this.isDragging = true;
-          this.draggedMonster = label;
-          this.dragStartPos = { x, y };
+          this.dragOffset = {
+            x: x - label.x,
+            y: y - label.y
+          };
+          wx.vibrateShort({ type: 'light' });
           return;
         }
       }
     }
     
-    // 处理网格点击
-    this.handleGridTouch(x, y, 'start');
+    // 检查格子点击（只有在不拖拽标签时）
+    if (!this.isDragging) {
+      const gridPos = this.screenToGridCoords(x, y);
+      if (gridPos) {
+        this.gameState.handleCellClick(gridPos.x, gridPos.y);
+        wx.vibrateShort({ type: 'medium' });
+      }
+    }
   }
 
+  /**
+   * 处理触摸移动
+   */
   handleTouchMove(x, y) {
-    this.backButton.update(x, y);
-    this.restartButton.update(x, y);
-    this.nextButton.update(x, y);
+    // 更新按钮悬停状态
+    this.buttons.forEach(button => button.update(x, y));
     
-    if (this.isDragging && this.draggedMonster) {
-      this.dragStartPos = { x, y };
+    // 处理标签拖拽
+    if (this.isDragging && this.draggedLabel) {
+      this.draggedLabel.x = x - this.dragOffset.x;
+      this.draggedLabel.y = y - this.dragOffset.y;
+      
+      // 检查是否悬停在格子上
+      const gridPos = this.screenToGridCoords(x, y);
+      if (gridPos) {
+        this.highlightedCell = gridPos;
+      } else {
+        this.highlightedCell = null;
+      }
     }
-    
-    this.handleGridTouch(x, y, 'move');
   }
 
+  /**
+   * 处理触摸结束
+   */
   handleTouchEnd(x, y) {
-    this.backButton.update(x, y);
-    this.restartButton.update(x, y);
-    this.nextButton.update(x, y);
+    // 处理按钮释放
+    this.buttons.forEach(button => {
+      button.update(x, y);
+      button.release();
+    });
     
-    // 处理按钮点击
-    if (this.backButton.isHovered && this.backButton.isPressed) {
-      this.backButton.release();
-    }
-    
-    if (this.restartButton.isHovered && this.restartButton.isPressed) {
-      this.restartButton.release();
-    }
-    
-    if (this.nextButton.isHovered && this.nextButton.isPressed) {
-      this.nextButton.release();
-    }
-    
-    // 处理拖拽结束
-    if (this.isDragging && this.draggedMonster) {
-      const pos = this.screenAdapter.screenToGameCoords(x, y);
+    // 处理标签放置
+    if (this.isDragging && this.draggedLabel) {
+      const gridPos = this.screenToGridCoords(x, y);
       
-      // 计算网格位置
-      const cellSize = this.screenAdapter.getAdaptedCellSize();
-      const gridWidth = this.gameState.mapSize.width;
-      const gridHeight = this.gameState.mapSize.height;
-      const startX = (Constants.SCREEN_WIDTH - gridWidth * cellSize) / 2;
-      const startY = (Constants.SCREEN_HEIGHT - gridHeight * cellSize) / 2 + 40;
-      
-      const gridX = Math.floor((pos.x - startX) / cellSize);
-      const gridY = Math.floor((pos.y - startY) / cellSize);
-      
-      // 检查是否在有效网格内
-      if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
-        this.gameState.markCell(gridX, gridY, this.draggedMonster.id);
+      if (gridPos) {
+        // 标记格子
+        this.gameState.markCell(gridPos.x, gridPos.y, this.draggedLabel.monster.id);
+        wx.vibrateShort({ type: 'heavy' });
       }
       
+      // 重置标签位置
+      this.draggedLabel.x = this.draggedLabel.originalX;
+      this.draggedLabel.y = this.draggedLabel.originalY;
+      this.draggedLabel = null;
       this.isDragging = false;
-      this.draggedMonster = null;
+      this.highlightedCell = null;
     }
     
-    this.handleGridTouch(x, y, 'end');
+    this.touchStartPos = null;
   }
 
-  handleGridTouch(x, y, type) {
-    if (this.gameState.gameState !== 'playing') return;
+  /**
+   * 屏幕坐标转换为网格坐标
+   */
+  screenToGridCoords(x, y) {
+    const gridX = Math.floor((x - this.gridOffsetX) / this.cellSize);
+    const gridY = Math.floor((y - this.gridOffsetY) / this.cellSize);
     
-    const cellSize = this.screenAdapter.getAdaptedCellSize();
-    const gridWidth = this.gameState.mapSize.width;
-    const gridHeight = this.gameState.mapSize.height;
-    const startX = (Constants.SCREEN_WIDTH - gridWidth * cellSize) / 2;
-    const startY = (Constants.SCREEN_HEIGHT - gridHeight * cellSize) / 2 + 40;
-    
-    // 转换为网格坐标
-    const gridX = Math.floor((x - startX) / cellSize);
-    const gridY = Math.floor((y - startY) / cellSize);
-    
-    // 检查是否在有效范围内
-    if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight) {
-      if (type === 'start') {
-        // 在教程第一步，只允许点击特定格子
-        if (this.tutorialStep === 0) {
-          this.gameState.handleCellClick(gridX, gridY);
-        } else if (this.tutorialStep === 1) {
-          // 第二步展示数字
-          this.gameState.handleCellClick(gridX, gridY);
-        }
-      }
+    if (gridX >= 0 && gridX < this.config.mapSize.width &&
+        gridY >= 0 && gridY < this.config.mapSize.height) {
+      return { x: gridX, y: gridY };
     }
-  }
-
-  completeTutorial() {
-    // 标记教程完成（实际项目中应保存到本地存储）
-    wx.setStorageSync('tutorialCompleted', true);
     
-    // 跳转到模式选择界面
-    if (this.sceneManager) {
-      this.sceneManager.changeScene(Constants.SCENE_MODE_SELECTION);
-    }
+    return null;
   }
 
-  update(deltaTime) {
-    if (this.gameState) {
-      this.gameState.update();
-      
-      // 检查游戏结束状态
-      if (this.gameState.gameState === 'won' && this.tutorialStep >= 3) {
-        this.completeTutorial();
-      } else if (this.gameState.gameState === 'lost' && this.tutorialStep >= 3) {
-        // 失败时自动重来
-        this.gameState.restart();
-      }
-    }
+  /**
+   * 检查点是否在矩形内
+   */
+  isPointInRect(px, py, rx, ry, rw, rh) {
+    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
   }
 
+  /**
+   * 场景调整大小
+   */
   resize() {
-    // 调整UI元素位置
+    this.calculateLayout();
+    this.createMonsterLabels();
   }
 
+  /**
+   * 清理场景
+   */
   destroy() {
-    // 清理资源
+    this.buttons = [];
+    this.panels = [];
+    this.texts = [];
+    this.monsterLabels = [];
+    this.draggedLabel = null;
   }
 }
