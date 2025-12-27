@@ -1,5 +1,4 @@
-import Constants from '../utils/Constants.js';
-
+// src/ui/Button.js
 export default class Button {
   constructor(x, y, width, height, text, callback) {
     this.x = x;
@@ -10,7 +9,6 @@ export default class Button {
     this.callback = callback;
     this.isHovered = false;
     this.isPressed = false;
-    this.fontSize = Constants.FONT_SIZES.NORMAL;
   }
 
   containsPoint(x, y) {
@@ -20,18 +18,18 @@ export default class Button {
 
   draw(ctx) {
     // 按钮背景
-    ctx.fillStyle = this.isPressed ? Constants.COLORS.SECONDARY : 
-                   (this.isHovered ? Constants.COLORS.PRIMARY : '#333333');
+    const bgColor = this.isPressed ? '#4a90e2' : (this.isHovered ? '#50e3c2' : '#333');
+    ctx.fillStyle = bgColor;
     ctx.fillRect(this.x, this.y, this.width, this.height);
     
     // 按钮边框
-    ctx.strokeStyle = Constants.COLORS.TEXT;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
     ctx.strokeRect(this.x, this.y, this.width, this.height);
     
     // 按钮文字
-    ctx.fillStyle = Constants.COLORS.TEXT;
-    ctx.font = `${this.fontSize}px ${Constants.FONT_FAMILY}`;
+    ctx.fillStyle = '#fff';
+    ctx.font = '24px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(this.text, this.x + this.width / 2, this.y + this.height / 2);
@@ -41,12 +39,8 @@ export default class Button {
     const wasHovered = this.isHovered;
     this.isHovered = this.containsPoint(x, y);
     
-    // 检测点击状态变化
-    if (this.isHovered && !wasHovered) {
-      this.onHoverEnter();
-    } else if (!this.isHovered && wasHovered) {
-      this.onHoverExit();
-      this.isPressed = false;
+    if (wasHovered !== this.isHovered) {
+      // 悬停状态变化
     }
   }
 
@@ -61,19 +55,5 @@ export default class Button {
       this.callback();
     }
     this.isPressed = false;
-  }
-
-  onHoverEnter() {
-    // 可以添加悬停音效等
-  }
-
-  onHoverExit() {
-    // 可以添加离开音效等
-  }
-
-  resize(screenWidth, screenHeight) {
-    // 按钮位置和大小可以根据屏幕尺寸调整
-    this.x = Math.min(this.x, screenWidth - this.width);
-    this.y = Math.min(this.y, screenHeight - this.height);
   }
 }

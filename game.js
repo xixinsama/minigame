@@ -1,7 +1,7 @@
 // game.js
 import SceneManager from './src/core/SceneManager.js';
 import InputManager from './src/core/InputManager.js';
-import Constants from './src/utils/Costants.js';
+import Constants from './src/utils/Constants.js';
 import GameInstructions from './src/scenes/GameInstructions.js';
 import ScreenAdapter from './src/utils/ScreenAdapter.js';
 
@@ -11,21 +11,26 @@ window.Game = {
   inputManager: null,
   screenAdapter: null,
   canvas: null,
+  ctx: null,
+  lastTime: 0,
   
   init() {
     // 创建画布
     this.canvas = wx.createCanvas();
-    this.canvas.width = Constants.SCREEN_WIDTH;
-    this.canvas.height = Constants.SCREEN_HEIGHT;
+    this.ctx = this.canvas.getContext('2d');
+    
+    // 设置画布物理尺寸
+    this.canvas.width = this.canvas.clientWidth; // 乘以2提高画质
+    this.canvas.height = this.canvas.clientHeight;
     
     // 初始化屏幕适配
-    this.screenAdapter = new ScreenAdapter(this.canvas);
+    this.screenAdapter = new ScreenAdapter();
     
     // 初始化场景管理器
-    this.sceneManager = new SceneManager(this.canvas, this.screenAdapter);
+    this.sceneManager = new SceneManager(this.canvas, this.ctx, this.screenAdapter);
     
     // 初始化输入管理器
-    this.inputManager = new InputManager(this.canvas, this.sceneManager);
+    this.inputManager = new InputManager(this.canvas, this.sceneManager, this.screenAdapter);
     
     // 注册场景
     this.sceneManager.registerScene(Constants.SCENE_GAME_INSTRUCTIONS, new GameInstructions());
@@ -42,6 +47,12 @@ window.Game = {
     const deltaTime = (now - (this.lastTime || now)) / 1000;
     this.lastTime = now;
     
+    // 清除画布
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // 应用适配变换
+    const restore = this.screenAdapter.applyTransform(this.ctx);
+    
     // 更新游戏状态
     if (this.sceneManager.currentScene) {
       this.sceneManager.currentScene.update(deltaTime);
@@ -49,8 +60,11 @@ window.Game = {
     
     // 绘制游戏
     if (this.sceneManager.currentScene) {
-      this.sceneManager.currentScene.draw();
+      this.sceneManager.currentScene.draw(this.ctx);
     }
+    
+    // 恢复上下文状态
+    restore();
     
     // 继续下一帧
     requestAnimationFrame(this.gameLoop.bind(this));
@@ -70,7 +84,7 @@ window.Game = {
     };
     
     // 加载怪物精灵图
-    resources.sprites.monsters.src = 'assets/images/Basic Demons 4x.png';
+    resources.sprites.monsters.src = 'assets/images/BasicDemons4x.png';
     
     // 加载音效
     resources.audio.button.src = 'assets/audio/button-press-382713.mp3';

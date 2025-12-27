@@ -20,9 +20,12 @@
       "disablePlugins": [],
       "outputPath": "miniprogram_dist"
     },
-    "enableEngineNative": false
+    "enableEngineNative": false,
+    "enhance": true,
+    "swc": true,
+    "disableSWC": false
   },
-  "libVersion": "2.19.4",
+  "libVersion": "2.24.7",
   "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},
   "cloudfunctionRoot": "",

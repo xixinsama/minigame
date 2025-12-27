@@ -1,49 +1,50 @@
 // src/core/SceneManager.js
 export default class SceneManager {
-  constructor(canvas, screenAdapter) {
+  constructor(canvas, ctx, screenAdapter) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = ctx;
     this.screenAdapter = screenAdapter;
     this.scenes = {};
     this.currentScene = null;
-    this.transitioning = false;
   }
 
   registerScene(name, scene) {
     this.scenes[name] = scene;
     scene.sceneManager = this;
+    scene.screenAdapter = this.screenAdapter;
   }
 
   changeScene(name) {
-    if (this.transitioning || !this.scenes[name]) return;
+    if (!this.scenes[name]) {
+      console.error(`场景 ${name} 未注册`);
+      return;
+    }
     
     const oldScene = this.currentScene;
     this.currentScene = this.scenes[name];
     
-    if (oldScene) {
+    if (oldScene && oldScene.destroy) {
       oldScene.destroy();
     }
     
-    this.currentScene.init();
-    this.currentScene.resize(
-      Constants.SCREEN_WIDTH, 
-      Constants.SCREEN_HEIGHT
-    );
+    if (this.currentScene.init) {
+      this.currentScene.init();
+    }
+    
+    if (this.currentScene.resize) {
+      this.currentScene.resize();
+    }
   }
 
   update(deltaTime) {
-    if (this.currentScene) {
+    if (this.currentScene && this.currentScene.update) {
       this.currentScene.update(deltaTime);
     }
   }
 
-  draw() {
-    if (!this.currentScene) return;
-    
-    // 清除画布
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // 绘制当前场景
-    this.currentScene.draw(this.ctx);
+  draw(ctx) {
+    if (this.currentScene && this.currentScene.draw) {
+      this.currentScene.draw(ctx);
+    }
   }
 }

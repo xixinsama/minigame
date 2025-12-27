@@ -1,5 +1,7 @@
+// src/core/GameState.js
 import Cell from './Cell.js';
 import { MonsterFactory } from './Monster.js';
+import Constants from '../utils/Constants.js';
 
 /**
  * 游戏状态管理器
@@ -7,24 +9,28 @@ import { MonsterFactory } from './Monster.js';
 export default class GameState {
   constructor() {
     // 游戏配置
-    this.mapSize = { width: 8, height: 6 }; // 默认小地图
-    this.lifeCount = 3;                     // 默认生命值
-    this.monsterMode = 1;                   // 怪物模式（1-4种怪）
-    this.difficulty = 'normal';             // 难度
+    this.mapSize = Constants.MAP_SIZES.small; // 默认小地图
+    this.lifeCount = 3;                       // 默认生命值
+    this.monsterMode = 1;                     // 怪物模式（1-5）
+    this.difficulty = 'normal';               // 难度
     
     // 游戏数据
-    this.grid = [];                         // 网格数据
-    this.monsters = [];                     // 当前关卡的怪物
-    this.availableMonsters = [];            // 可用的怪物类型
-    this.remainingMonsters = 0;             // 剩余未标记的怪物数量
+    this.grid = [];                           // 网格数据
+    this.monsters = [];                       // 当前关卡的怪物
+    this.availableMonsters = [];              // 可用的怪物类型
+    this.remainingMonsters = 0;               // 剩余未标记的怪物数量
+    this.correctlyMarked = 0;                 // 正确标记的怪物数量
     
     // 游戏状态
-    this.gameState = 'ready';               // ready, playing, won, lost
-    this.startTime = 0;                     // 游戏开始时间
-    this.elapsedTime = 0;                   // 已用时间
+    this.gameState = 'ready';                 // ready, playing, won, lost
+    this.startTime = 0;                       // 游戏开始时间
+    this.elapsedTime = 0;                     // 已用时间
     
     // 初始化可用怪物
     this.availableMonsters = MonsterFactory.createMonsters();
+    
+    // 用于空格展开的队列
+    this.expandQueue = [];
   }
 
   /**
@@ -33,10 +39,10 @@ export default class GameState {
    */
   init(config = {}) {
     // 应用配置
-    if (config.mapSize) this.mapSize = config.mapSize;
-    if (config.lifeCount !== undefined) this.lifeCount = config.lifeCount;
-    if (config.monsterMode) this.monsterMode = config.monsterMode;
-    if (config.difficulty) this.difficulty = config.difficulty;
+    this.mapSize = config.mapSize || Constants.MAP_SIZES.small;
+    this.lifeCount = config.lifeCount !== undefined ? config.lifeCount : 3;
+    this.monsterMode = config.monsterMode || 1;
+    this.difficulty = config.difficulty || 'normal';
     
     // 创建网格
     this.createGrid();
@@ -47,6 +53,7 @@ export default class GameState {
     // 重置状态
     this.gameState = 'ready';
     this.elapsedTime = 0;
+    this.correctlyMarked = 0;
     this.remainingMonsters = this.monsters.length;
   }
 
@@ -70,23 +77,28 @@ export default class GameState {
   generateMonsters() {
     this.monsters = [];
     
+    // 根据怪物模式获取可用怪物类型
+    const availableTypes = MonsterFactory.getMonstersByMode(this.monsterMode);
+    
     // 根据难度计算怪物数量
     let monsterCount;
+    const totalCells = this.mapSize.width * this.mapSize.height;
+    
     switch (this.difficulty) {
       case 'easy':
-        monsterCount = Math.floor((this.mapSize.width * this.mapSize.height) * 0.1);
+        monsterCount = Math.floor(totalCells * 0.08); // 8%
         break;
       case 'hard':
-        monsterCount = Math.floor((this.mapSize.width * this.mapSize.height) * 0.25);
+        monsterCount = Math.floor(totalCells * 0.20); // 20%
         break;
       default: // normal
-        monsterCount = Math.floor((this.mapSize.width * this.mapSize.height) * 0.15);
+        monsterCount = Math.floor(totalCells * 0.12); // 12%
     }
     
-    // 根据怪物模式限制怪物种类
-    const availableTypes = this.availableMonsters.slice(0, this.monsterMode);
+    // 确保怪物数量合理
+    monsterCount = Math.max(1, Math.min(monsterCount, Math.floor(totalCells * 0.3)));
     
-    // 随机生成怪物位置
+    // 生成随机位置
     const positions = [];
     for (let y = 0; y < this.mapSize.height; y++) {
       for (let x = 0; x < this.mapSize.width; x++) {
@@ -100,7 +112,7 @@ export default class GameState {
     // 选择前monsterCount个位置
     const selectedPositions = positions.slice(0, monsterCount);
     
-    // 为每个位置随机分配怪物类型
+    // 为每个位置分配怪物类型
     selectedPositions.forEach(pos => {
       const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
       const monster = {
@@ -122,7 +134,7 @@ export default class GameState {
    * 计算所有格子的数值
    */
   calculateValues() {
-    // 重置所有格子的数值
+    // 重置所有非怪物格子的数值
     for (let y = 0; y < this.mapSize.height; y++) {
       for (let x = 0; x < this.mapSize.width; x++) {
         if (!this.grid[y][x].isMine) {
@@ -166,10 +178,13 @@ export default class GameState {
     if (this.gameState !== 'playing') return false;
     if (x < 0 || x >= this.mapSize.width || y < 0 || y >= this.mapSize.height) return false;
     
-    const cell = this.grid[y][x];
+    const cell = this.getCell(x, y);
     
     // 如果是标记过的格子，不能点击
     if (cell.isMarked) return false;
+    
+    // 如果已经揭开，不能再次点击
+    if (cell.isRevealed) return false;
     
     // 探索单元格
     const isMine = cell.reveal();
@@ -181,6 +196,7 @@ export default class GameState {
       // 检查是否失败
       if (this.lifeCount <= 0) {
         this.gameState = 'lost';
+        this.revealAllMines();
         return true;
       }
       
@@ -188,7 +204,7 @@ export default class GameState {
       return false;
     }
     
-    // 如果是空格子，自动展开周围
+    // 如果是空格子（数值为0），自动展开周围
     if (cell.value === 0) {
       this.autoRevealEmptyArea(x, y);
     }
@@ -218,7 +234,7 @@ export default class GameState {
       if (pos.x < 0 || pos.x >= this.mapSize.width || 
           pos.y < 0 || pos.y >= this.mapSize.height) continue;
       
-      const cell = this.grid[pos.y][pos.x];
+      const cell = this.getCell(pos.x, pos.y);
       
       // 如果已探索或已标记，跳过
       if (cell.isRevealed || cell.isMarked) continue;
@@ -236,10 +252,13 @@ export default class GameState {
         ];
         
         directions.forEach(dir => {
-          stack.push({
-            x: pos.x + dir[0],
-            y: pos.y + dir[1]
-          });
+          const newX = pos.x + dir[0];
+          const newY = pos.y + dir[1];
+          
+          if (newX >= 0 && newX < this.mapSize.width && 
+              newY >= 0 && newY < this.mapSize.height) {
+            stack.push({x: newX, y: newY});
+          }
         });
       }
     }
@@ -255,12 +274,36 @@ export default class GameState {
     if (this.gameState !== 'playing') return;
     if (x < 0 || x >= this.mapSize.width || y < 0 || y >= this.mapSize.height) return;
     
-    const cell = this.grid[y][x];
+    const cell = this.getCell(x, y);
+    const oldMarkedType = cell.markedMonsterType;
     const success = cell.mark(monsterTypeId);
     
     if (success) {
+      // 如果是标记而不是取消标记
+      if (monsterTypeId !== null) {
+        // 检查是否标记正确
+        const monster = this.monsters.find(m => m.x === x && m.y === y);
+        if (monster && monster.type.id === monsterTypeId) {
+          this.correctlyMarked++;
+        } else if (oldMarkedType && oldMarkedType !== monsterTypeId) {
+          // 如果之前标记正确，现在改了，需要减去
+          const wasCorrect = this.monsters.find(m => m.x === x && m.y === y && m.type.id === oldMarkedType);
+          if (wasCorrect) {
+            this.correctlyMarked--;
+          }
+        }
+      } else if (oldMarkedType !== null) {
+        // 取消标记
+        const wasCorrect = this.monsters.find(m => m.x === x && m.y === y && m.type.id === oldMarkedType);
+        if (wasCorrect) {
+          this.correctlyMarked--;
+        }
+      }
+      
       // 更新剩余怪物数量
       this.updateRemainingMonsters();
+      
+      // 检查胜利条件
       this.checkWinCondition();
     }
   }
@@ -269,16 +312,7 @@ export default class GameState {
    * 更新剩余怪物数量
    */
   updateRemainingMonsters() {
-    let correctlyMarked = 0;
-    
-    this.monsters.forEach(monster => {
-      const cell = this.grid[monster.y][monster.x];
-      if (cell.isMarked && cell.markedMonsterType === monster.type.id) {
-        correctlyMarked++;
-      }
-    });
-    
-    this.remainingMonsters = this.monsters.length - correctlyMarked;
+    this.remainingMonsters = this.monsters.length - this.correctlyMarked;
   }
 
   /**
@@ -286,17 +320,28 @@ export default class GameState {
    */
   checkWinCondition() {
     // 检查是否所有怪物都被正确标记
-    let allMarked = true;
-    
-    this.monsters.forEach(monster => {
-      const cell = this.grid[monster.y][monster.x];
-      if (!cell.isMarked || cell.markedMonsterType !== monster.type.id) {
-        allMarked = false;
+    if (this.correctlyMarked === this.monsters.length) {
+      // 还需确保所有非怪物格子都被探索
+      let allSafeCellsRevealed = true;
+      
+      for (let y = 0; y < this.mapSize.height; y++) {
+        for (let x = 0; x < this.mapSize.width; x++) {
+          const cell = this.getCell(x, y);
+          if (!cell.isMine && !cell.isRevealed) {
+            allSafeCellsRevealed = false;
+            break;
+          }
+        }
+        if (!allSafeCellsRevealed) break;
       }
-    });
-    
-    if (allMarked) {
-      this.gameState = 'won';
+      
+      if (allSafeCellsRevealed) {
+        this.gameState = 'won';
+        // 标记所有怪物
+        this.monsters.forEach(monster => {
+          this.getCell(monster.x, monster.y).mark(monster.type.id);
+        });
+      }
     }
   }
 
@@ -343,5 +388,31 @@ export default class GameState {
       return null;
     }
     return this.grid[y][x];
+  }
+
+  /**
+   * 揭示所有怪物
+   */
+  revealAllMines() {
+    this.monsters.forEach(monster => {
+      const cell = this.getCell(monster.x, monster.y);
+      if (!cell.isRevealed) {
+        cell.isRevealed = true;
+      }
+    });
+  }
+
+  /**
+   * 获取游戏统计信息
+   */
+  getStats() {
+    return {
+      totalMines: this.monsters.length,
+      remainingMines: this.remainingMonsters,
+      correctlyMarked: this.correctlyMarked,
+      lifeCount: this.lifeCount,
+      gameState: this.gameState,
+      elapsedTime: this.elapsedTime
+    };
   }
 }

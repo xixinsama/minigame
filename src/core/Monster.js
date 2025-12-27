@@ -8,6 +8,12 @@ export default class Monster {
     this.value = value;        // 怪物数值
     this.rangeVectors = rangeVectors; // 影响范围向量
     this.spritePos = spritePos; // 在精灵图中的位置 {row, col}
+    
+    // 计算精灵图中的实际像素位置 (72x72 像素每个精灵)
+    this.spriteX = spritePos.col * 72;
+    this.spriteY = spritePos.row * 72;
+    this.spriteWidth = 72;
+    this.spriteHeight = 72;
   }
 
   /**
@@ -42,7 +48,7 @@ export class MonsterFactory {
   static createMonsters() {
     const monsters = [];
     
-    // 怪物1：数值为1，范围为周围八格 + 上下左右各2格（共12格）
+    // 怪物1
     const monster1Range = [
       // 周围8格
       [-1, -1], [0, -1], [1, -1],
@@ -51,27 +57,79 @@ export class MonsterFactory {
       // 上下左右各2格
       [0, -2], [0, 2], [-2, 0], [2, 0]
     ];
-    monsters.push(new Monster('monster1', '小幽灵', 1, monster1Range, {row: 0, col: 0}));
+    monsters.push(new Monster('monster1', '恶魔A', 1, monster1Range, {row: 0, col: 0}));
     
-    // 怪物2：数值为2，范围为周围8格
+    // 怪物2
     const monster2Range = [
       [-1, -1], [0, -1], [1, -1],
       [-1, 0],           [1, 0],
-      [-1, 1],  [0, 1],  [1, 1]
+      [-1, 1],  [0, 1],  [1, 1],
+      [0, -2], [0, 2], [-2, 0], [2, 0]
     ];
-    monsters.push(new Monster('monster2', '大幽灵', 2, monster2Range, {row: 0, col: 1}));
+    monsters.push(new Monster('monster2', '恶魔B', 2, monster2Range, {row: 0, col: 1}));
     
-    // 怪物3：数值为3，范围为十字形（上下左右各3格）
+    // 怪物3
     const monster3Range = [
-      [0, -1], [0, -2], [0, -3],
-      [-1, 0], [-2, 0], [-3, 0],
-      [1, 0],  [2, 0],  [3, 0],
-      [0, 1],  [0, 2],  [0, 3]
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],           [1, 0],
+      [-1, 1],  [0, 1],  [1, 1],
+      [0, -2], [0, 2], [-2, 0], [2, 0]
     ];
-    monsters.push(new Monster('monster3', '骷髅王', 3, monster3Range, {row: 0, col: 2}));
+    monsters.push(new Monster('monster3', '恶魔C', 3, monster3Range, {row: 0, col: 2}));
     
-    // 更多怪物类型可以在这里继续添加...
+    // 怪物4
+    const monster4Range = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0],           [1, 0],
+    [-1, 1],  [0, 1],  [1, 1]
+  ];
+    monsters.push(new Monster('monster3', '幽浮A', 1, monster4Range, {row: 0, col: 3}));
+    
+    // 怪物5
+    const monster5Range = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0],           [1, 0],
+    [-1, 1],  [0, 1],  [1, 1]
+  ];
+    monsters.push(new Monster('monster3', '幽浮B', 2, monster5Range, {row: 2, col: 0}));
+    
+    // 怪物6
+   const monster6Range = [
+    [-1, 0], [0, 1], [1, 0], [0, -1],
+    [-2, 0], [0, 2], [2, 0], [0, -2]
+  ];
+    monsters.push(new Monster('monster3', '淤泥怪A', 2, monster6Range, {row: 2, col: 1}));
+  
+    // 怪物7
+   const monster7Range = [
+    [-1, -1], [1, 1], [1, -1], [-1, 1],
+    [-2, -2], [2, 2], [2, -2], [-2, 2]
+  ];
+    monsters.push(new Monster('monster3', '淤泥怪B', 2, monster7Range, {row: 2, col: 2}));
     
     return monsters;
+  }
+/**
+   * 获取指定模式的怪物类型
+   * @param {number} mode - 怪物模式 (1-5)
+   * @returns {Array} - 该模式下可用的怪物类型
+   */
+  static getMonstersByMode(mode) {
+    const allMonsters = this.createMonsters();
+    
+    switch(mode) {
+      case 1: // 只有前三种（恶魔A,B,C）
+        return allMonsters.slice(0, 3);
+      case 2: // 只有第四第五种（幽浮A,B）
+        return allMonsters.slice(3, 5);
+      case 3: // 有前五种（恶魔A,B,C + 幽浮A,B）
+        return allMonsters.slice(0, 5);
+      case 4: // 有前六种
+        return allMonsters.slice(0, 6);
+      case 5: // 有全部七种
+        return allMonsters;
+      default:
+        return allMonsters.slice(0, 3); // 默认返回前三种
+    }
   }
 }

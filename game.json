@@ -5,7 +5,6 @@
     "request": 10000
   },
   "subpackages": [],
-  "workers": "",
   "requiredBackgroundModes": [],
   "resizable": true
 }
