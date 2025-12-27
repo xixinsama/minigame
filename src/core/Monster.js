@@ -98,7 +98,7 @@ export class MonsterFactory {
       [-1, 0], [0, 1], [1, 0], [0, -1],
       [-2, 0], [0, 2], [2, 0], [0, -2]
     ];
-    monsters.push(new Monster('monster6', '淤泥怪A', 2, monster6Range, {row: 2, col: 1}));
+    monsters.push(new Monster('monster6', '淤泥怪A', 3, monster6Range, {row: 2, col: 1}));
   
     // 怪物7 - 淤泥怪B
     const monster7Range = [
